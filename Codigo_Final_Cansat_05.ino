@@ -209,8 +209,7 @@ void sendData() {
   
   //enviar os dados para o módulo apc220
   Serial1.println();
-  if (data != "")  
-    Serial1.println(data);
+  Serial1.println(data);
 
   saveData();
 }
