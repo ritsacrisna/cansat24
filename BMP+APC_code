@@ -1,0 +1,96 @@
+//------------------------------------------------------
+//Importação de biliotecas
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include "Adafruit_BMP3XX.h"
+
+//------------------------------------------------------
+//Secção de instanciação de objetos
+const long interval = 1000;
+unsigned long previousTime = 0;
+unsigned long actualTime = 0;
+
+// BMP
+Adafruit_BMP3XX bmp;
+const float zz = 0.0065, R = 287.06, g = 9.81;
+float T0 = 0;
+float P0 = 0;
+float temperature = 0;
+float pressure = 0;
+float altitude = 0;
+
+//formatar dados para enviar
+String data = "";
+String bmpdata = "";
+
+//------------------------------------------------------
+void setup(){
+  //void setup geral
+  //inicialização de comunicações, do sensor e do módulo emissor
+  Serial.begin(9600);  // the Serial port of Arduino baud rate.
+  Serial1.begin(9600); // Inicializa a comunicação serial com o módulo APC-220
+  delay(1000);
+
+//void setup do BMP
+  if (!bmp.begin_I2C()) {   // hardware I2C mode, can pass in address & alt Wire
+  //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
+  //if (! bmp.begin_SPI(BMP_CS, BMP_SCK, BMP_MISO, BMP_MOSI)) {  // software SPI mode
+    Serial.println("Could not find a valid BMP3 sensor, check wiring!");
+    Serial1.println("Could not find a valid BMP3 sensor, check wiring!");
+    while (1);
+  }
+  
+  // Set up oversampling and filter initialization
+  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_8X);
+  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
+  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_3);
+  bmp.setOutputDataRate(BMP3_ODR_50_HZ);
+
+//lê os valores da pressão e temperatura e guarda nas variáveis P0 e T0 respetivamente
+  P0 = bmp.readPressure() / 100; //converte para hPa
+  T0 = bmp.readTemperature();
+
+//------------------------------------------------------
+void loop() {
+
+  getValues(); //chamar a função que lê os dados
+
+  actualTime = millis(); 
+  //se passaram 1000ms desde o último envio de dados, enviar dados
+  if (actualTime - previousTime >= interval) {
+    //atualiza o tempo atual
+    previousTime = actualTime;
+     sendData();  
+  }  
+}
+
+//------------------------------------------------------
+void sendData() {
+  //enviar os dados para o módulo apc220
+  Serial1.println();
+  if (data != "")  
+    Serial1.println(bmpdata);
+    Serial.println(bmpdata);
+}
+
+//------------------------------------------------------
+void getValues() {
+//BMP
+  if (! bmp.performReading()) {
+    Serial.println("Failed to perform BMP reading :(");
+    Serial1.println("Failed to perform BMP reading :(");
+    return;
+  }
+  
+  //ler valores do sensor e guardar no bmpdata
+  bmpdata = "Temp: " + String(bmp.temperature) + ", Press: " + String(bmp.pressure / 100.0) + ", Alt: " + String(bmp.readAltitude(SEALEVELPRESSURE_HPA)) + ", ";
+
+  temperature = bmp.temperature;
+  pressure = bmp.pressure / 100.0;
+  //calcular a altitude
+  //altitude = ((T0 + 273.15) / z) * (1 - (pow(pressure / P0, (z * R) / g)));
+  altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
+}
+
+
+
