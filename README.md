@@ -1,6 +1,3 @@
-
-Certainly! Here's a draft:
-
 Understanding CanSat Competition and Secondary Mission: Measuring NDVI
 
 Introduction to CanSat Competition
