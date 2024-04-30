@@ -38,6 +38,7 @@ int16_t gg_x, gg_y, gg_z;
 double heading;
 int32_t offset_x, offset_y, offset_z;
 double roll, pitch;
+double roll27, pitch27;
 // Find the magnetic declination at your location
 // http://www.magnetic-declination.com/
 double declination_santamaria = -6.933; // -6° 56'
@@ -61,7 +62,8 @@ int cmd;
 TinyGPSPlus gps; // the TinyGPS+ object
 
 //cartao sd
-#define pinSDCS 8
+#define pinSDCS 8\
+#define pinSDSCK 13
 String filename = "cansat24.csv";
 File logfile;
 
@@ -71,8 +73,11 @@ int activateBuzzer = 0;
 
 //fotodiodos
 const int analogRedPin = A0; 
-const int analogNirPin = A1;
+const int analogNirPin1 = A1;
+const int analogNirPin2 = A2;
 int RED = 0;  
+int NIR1 = 0;
+int NIR2 = 0;
 int NIR = 0;
 float NDVI;
 
@@ -114,6 +119,7 @@ void setup(){
   if (!bmp.begin_I2C()) {   // hardware I2C mode, can pass in address & alt Wire
   //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
   //if (! bmp.begin_SPI(BMP_CS, BMP_SCK, BMP_MISO, BMP_MOSI)) {  // software SPI mode
+    Serial.println("Could not find a valid BMP3 sensor, check wiring!");
     Serial1.println("Could not find a valid BMP3 sensor, check wiring!");
     while (1);
   }
@@ -133,37 +139,43 @@ void setup(){
 
   err = ak09918.isDataReady();
   while (err != AK09918_ERR_OK) {
+    Serial.println("Waiting Sensor");
     Serial1.println("Waiting Sensor");
     delay(100);
     err = ak09918.isDataReady();
   }
 
-  //Serial.println("Start figure-8 calibration after 2 seconds.");
+  Serial.println("Start figure-8 calibration after 2 seconds.");
   Serial1.println("Start figure-8 calibration after 2 seconds.");
-  delay(2000);
-  calibrate(10000, &offset_x, &offset_y, &offset_z);
-  //Serial.println();
+  //delay(2000);
+  //calibrate(10000, &offset_x, &offset_y, &offset_z);
+  Serial.println();
   Serial1.println();
   delay(2000);
+  
    //lê os valores da pressão e temperatura e guarda nas variáveis P0 e T0 respetivamente
   P0 = bmp.readPressure() / 100; //converte para hPa
   T0 = bmp.readTemperature();
 /*
   //void setup do ficheiro
-  if (!SD.begin(pinSDCS)) {
-    Serial1.println("initialization failed!");
-    while (1);
+  while (!SD.begin(pinSDCS)) {
+    Serial.println("SD initialization failed!");
+//    Serial1.println("SD initialization failed!");
+//    while (1);
   }
-  Serial1.println("SD initialization done.");
+  Serial.println("SD initialization done.");
+//  Serial1.println("SD initialization done.");
   logfile = SD.open(filename, FILE_WRITE);    
   if (logfile) {
-    Serial1.print("Writing to cansat24.csv  ...");
-    logfile.println("DATE,TIME,AGE,LAT,LATM,LNG,LNGM,HDOP,COURSE,SPEED,SPEEDM,ALTITUDE,SAT");
+    Serial.print("Writing to cansat24.csv  ...");
+//    Serial1.print("Writing to cansat24.csv  ...");
+    logfile.println("DATE,TIME,LAT,LNG,ALTITUDE,SAT");
   }
   // close the file:
   logfile.close();
+  Serial.println("done.");
   Serial1.println("done.");
-  */
+*/
 }
 
 //------------------------------------------------------
@@ -217,11 +229,11 @@ void sendData() {
     Serial1.println(data);
     Serial.println(data);
 
-  //saveData();
+//  saveData();
 }
 
 //------------------------------------------------------
-/*
+
 void saveData() {
   if (data != "") {  
     if(SD.exists(filename)) { // check the card is still there
@@ -245,7 +257,7 @@ void saveData() {
     }
   }
 }
-*/
+
 //------------------------------------------------------
 void getValues() {
 
@@ -267,6 +279,7 @@ void getValues() {
 
   //BMP
   if (! bmp.performReading()) {
+    Serial.println("Failed to perform BMP reading :(");
     Serial1.println("Failed to perform BMP reading :(");
     return;
   }
@@ -274,13 +287,13 @@ void getValues() {
   //ler valores do sensor e guardar no bmpdata
   bmpdata = "Temp: " + String(bmp.temperature) + ", Press: " + String(bmp.pressure / 100.0) + ", Alt: " + String(bmp.readAltitude(SEALEVELPRESSURE_HPA)) + ", ";
 
-/*
+
   temperature = bmp.temperature;
   pressure = bmp.pressure / 100.0;
   //calcular a altitude
   //altitude = ((T0 + 273.15) / z) * (1 - (pow(pressure / P0, (z * R) / g)));
   altitude = bmp.readAltitude(SEALEVELPRESSURE_HPA);
-*/
+
 
   //giroscópio
   acc_x = icm20600.getAccelerationX();
@@ -297,16 +310,18 @@ void getValues() {
   z = z - offset_z;
 
   // roll/pitch/heading
-  roll = (atan2((float)acc_y, (float)acc_z)) * 57.3;
-  pitch = (atan2(-(float)acc_x, sqrt((float)acc_y * acc_y + (float)acc_z * acc_z))) * 57.3;
+  roll = (atan2((float)acc_y, (float)acc_z));
+  pitch = (atan2(-(float)acc_x, sqrt((float)acc_y * acc_y + (float)acc_z * acc_z)));
+  roll27 = roll * 57.3;
+  pitch27 = pitch * 57.3;
 
   double Xheading = x * cos(pitch) + y * sin(roll) * sin(pitch) + z * cos(roll) * sin(pitch);
   double Yheading = y * cos(roll) - z * sin(pitch);
 
   heading = (180 + 57.3 * atan2(Yheading, Xheading));
 
-  if (pitch < 0) {
-    pitch = pitch + 90;
+  if (pitch27 < 0) {
+    pitch27 = pitch27 + 90;
   } 
 
   X = 10 * tan((pitch - 20) * rad);
@@ -319,12 +334,14 @@ void getValues() {
     A = 0.0; //se aparecer 0.0 na string, então é porque A não é valido
   
 
-  gyrodata = "M: " + String(x) + ";" + String(y) + ";" + String(z) + ", Roll: " + String(roll) + ", Pitch: " + String(pitch) + ", Head: " + String(heading) + ", X: " + String(X) + ", A: " + \
+  gyrodata = "M: " + String(x) + ";" + String(y) + ";" + String(z) + ", Roll: " + String(roll27) + ", Pitch: " + String(pitch27) + ", Head: " + String(heading) + ", X: " + String(X) + ", A: " + \
              String(A) + ", r: " + String(r) + ", xC: " + String(XC) + ", yC: " + String(YC) + ", ";
 
 //fotodiodos
   RED = analogRead(analogRedPin);
-  NIR = analogRead(analogNirPin);
+  NIR1 = analogRead(analogNirPin1);
+  NIR2 = analogRead(analogNirPin2);
+  NIR = (NIR1 + NIR2) / 2;
   NDVI = ((float)NIR - (float)RED)/((float)NIR + (float)RED);
  
   diodedata = "Red: " + String(RED) + ", NIR: " + String(NIR) + ", NDVI: " + String(NDVI);
@@ -393,6 +410,7 @@ void calibrate(uint32_t timeout, int32_t* offsetx, int32_t* offsety, int32_t* of
       }
       
     Serial1.print(".");        
+    Serial.print(".");        
     delay(100);
 
   }
@@ -402,7 +420,3 @@ void calibrate(uint32_t timeout, int32_t* offsetx, int32_t* offsety, int32_t* of
   *offsetz = value_z_min + (value_z_max - value_z_min) / 2;
 
 }
-
-
-
-
