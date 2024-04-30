@@ -1,0 +1,35 @@
+const int analogRedPin = A0;  
+const int analogNirPin1 = A1;  
+const int analogNirPin2 = A2;
+
+int sensorValueRed = 0;  
+int sensorValueNir1 = 0;  
+int sensorValueNir2 = 0;
+int sensorValueNir = 0;
+int NDVI = 0;
+
+void setup() {
+  // initialize serial communications at 9600 bps:
+  Serial.begin(9600);
+}
+
+void loop() {
+  // read the analog in value:
+  sensorValueRed = analogRead(analogRedPin);
+  sensorValueNir1 = analogRead(analogNirPin1);
+  sensorValueNir2 = analogRead(analogNirPin2);
+
+  sensorValueNir = (sensorValueNir1 + sensorValueNir2) / 2;
+  NDVI = ((float)sensorValueNir - (float)sensorValueRed) / ((float)sensorValueNir + (float)sensorValueRed);
+
+
+  // print the results to the Serial Monitor:
+  Serial.print("Red ");
+  Serial.println(sensorValueRed);
+  Serial.print("Nir ");
+  Serial.println(sensorValueNir);
+  Serial.print("NDVI ");
+  Serial.println(NDVI);
+
+  delay(1000);
+}
