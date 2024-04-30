@@ -324,11 +324,12 @@ void getValues() {
     pitch27 = pitch27 + 90;
   } 
 
-  X = 10 * tan((pitch - 20) * rad);
-  A = (10 * (tan((pitch + 20) * rad) - tan((pitch - 20) * rad))) / 2;
+  X = bmp.readAltitude(SEALEVELPRESSURE_HPA) * tan((pitch27 - 20) * rad); 
+  A = ( bmp.readAltitude(SEALEVELPRESSURE_HPA) * (tan((pitch27 + 20) * rad) - tan((pitch27 - 20) * rad))) / 2;
   r = X + A;
-  XC = r * cos(heading * rad) - 100;
-  YC = r * sin(heading * rad) - 100;
+  //X do cansat é latitude e Y a longitude
+  XC = (r * cos(heading * rad) * 57.3 - gps.location.lat());
+  YC = (r * sin(heading * rad) * 57.3 - gps.location.lng());
 
   if (pitch > 70) 
     A = 0.0; //se aparecer 0.0 na string, então é porque A não é valido
