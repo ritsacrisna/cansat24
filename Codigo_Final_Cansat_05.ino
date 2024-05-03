@@ -10,12 +10,12 @@
 #include <SD.h>
 
 //Secção de declaração de constantes e variáveis globais
-#define SEALEVELPRESSURE_HPA (1026)
+#define SEALEVELPRESSURE_HPA (1023.25)
 #define rad 1/57.3
 
 //------------------------------------------------------
 //Secção de instanciação de objetos
-const long interval = 1000;
+const long interval = 500;
 unsigned long previousTime = 0;
 unsigned long actualTime = 0;
 
@@ -44,7 +44,7 @@ double roll27, pitch27;
 double declination_santamaria = -6.933; // -6° 56'
 
 float X;
-float A;
+float a;
 float XC;
 float YC;
 float r;
@@ -62,8 +62,7 @@ int cmd;
 TinyGPSPlus gps; // the TinyGPS+ object
 
 //cartao sd
-#define pinSDCS 8\
-#define pinSDSCK 13
+#define pinSDCS 8
 String filename = "cansat24.csv";
 File logfile;
 
@@ -73,11 +72,8 @@ int activateBuzzer = 0;
 
 //fotodiodos
 const int analogRedPin = A0; 
-const int analogNirPin1 = A1;
-const int analogNirPin2 = A2;
+const int analogNirPin1 = A2;
 int RED = 0;  
-int NIR1 = 0;
-int NIR2 = 0;
 int NIR = 0;
 float NDVI;
 
@@ -98,11 +94,16 @@ void setup(){
   //inicialização de comunicações, do sensor e do módulo emissor
   Serial.begin(9600);  // the Serial port of Arduino baud rate.
   Serial1.begin(9600); // Inicializa a comunicação serial com o módulo APC-220
+  while (!Serial1)
+    Serial.println("inicializando 1");
   Serial2.begin(9600);  // Default baud of Air530z GPS module is 9600
+    while (!Serial2)
+    Serial.println("inicializando 2");
   delay(1000);
 
-/*
+
   //void setup do GPS
+  /*
   Serial2.println("$PCAS01,4*18");//alterar o baud rate para 57600
   delay(1000);
   Serial2.flush();
@@ -111,10 +112,11 @@ void setup(){
   delay(1000);
   Serial2.begin(57600);
   delay(1000);
+  */
   Serial2.println("$PCAS10,0*1C"); //warm start
   delay(250);
   Serial2.println("$PCAS03,1,0,0,0,1,0,0,0,0,0,0,0,0*1E"); //envia apenas o GGA e o RMC 
-*/
+
   //void setup do BMP
   if (!bmp.begin_I2C()) {   // hardware I2C mode, can pass in address & alt Wire
   //if (! bmp.begin_SPI(BMP_CS)) {  // hardware SPI mode  
@@ -147,8 +149,8 @@ void setup(){
 
   Serial.println("Start figure-8 calibration after 2 seconds.");
   Serial1.println("Start figure-8 calibration after 2 seconds.");
-  //delay(2000);
-  //calibrate(10000, &offset_x, &offset_y, &offset_z);
+  delay(2000);
+  calibrate(10000, &offset_x, &offset_y, &offset_z);
   Serial.println();
   Serial1.println();
   delay(2000);
@@ -156,11 +158,11 @@ void setup(){
    //lê os valores da pressão e temperatura e guarda nas variáveis P0 e T0 respetivamente
   P0 = bmp.readPressure() / 100; //converte para hPa
   T0 = bmp.readTemperature();
-/*
+
   //void setup do ficheiro
   while (!SD.begin(pinSDCS)) {
     Serial.println("SD initialization failed!");
-//    Serial1.println("SD initialization failed!");
+    Serial1.println("SD initialization failed!");
 //    while (1);
   }
   Serial.println("SD initialization done.");
@@ -175,7 +177,7 @@ void setup(){
   logfile.close();
   Serial.println("done.");
   Serial1.println("done.");
-*/
+
 }
 
 //------------------------------------------------------
@@ -189,15 +191,13 @@ void loop() {
     //atualiza o tempo atual
     previousTime = actualTime;
     //chamar a função que envia os dados com aviso
-    if (activateBuzzer)
-      tone(pinBUZZER,2000);
 
     sendData();  
   }  
-  noTone(pinBUZZER);
 
-  receiveCmds();
+  //receiveCmds();
 
+  tone(pinBUZZER , 2000);
 }
 
 //------------------------------------------------------
@@ -205,16 +205,18 @@ void receiveCmds() {
 
  if (Serial1.available()) {
     char c = Serial1.read();
-    if (c == '1') {
+    if (c = '1') {
+      tone(pinBUZZER , HIGH);
       Serial1.println("buzzer");
       Serial.println("buzzer");
-      activateBuzzer = 1;
     }
-    if (c == '0') {
+    /*
+    if (c = '0') {
+      noTone(pinBUZZER , LOW);
       Serial1.println("no buzzer");
       Serial.println("no buzzer");
-      activateBuzzer = 0;
-    }
+    } 
+    */
   }
 }
 
@@ -224,12 +226,10 @@ void sendData() {
   data = gpsdata + bmpdata + gyrodata + diodedata;
   
   //enviar os dados para o módulo apc220
-  Serial1.println();
-  if (data != "")  
-    Serial1.println(data);
-    Serial.println(data);
+  Serial1.println(data);
+  Serial.println(data);
 
-//  saveData();
+  saveData();
 }
 
 //------------------------------------------------------
@@ -248,7 +248,7 @@ void saveData() {
     else {
       logfile = SD.open(filename, FILE_WRITE );
       if (logfile) {
-        logfile.println("DATE,TIME,LAT,LNG,LNGM,HDOP,COURSE,SPEED,SPEEDM,ALTITUDE,SAT");
+        //logfile.println("DATE,TIME,LAT,LNG,LNGM,HDOP,COURSE,SPEED,SPEEDM,ALTITUDE,SAT");
         logfile.println(data);
         logfile.close(); // close the file
         data = "";
@@ -267,13 +267,13 @@ void getValues() {
     {
       int ch = Serial2.read();
       gps.encode(ch);
-      Serial.write(ch);
+      //Serial.write(ch);
     }
   }
 
   if (gps.location.isValid()) {
     gpsdata = "date: " + String(gps.date.value()) + ", Time: " + String(gps.time.value()) + ", Lat: " + \
-              String(gps.location.lat(),6) + ", Long: " + String(gps.location.lng(),6) + ", Alt: " + \
+              String(gps.location.lat(),6) + ", Long: " + String(gps.location.lng(),6) + ", Alt2: " + \
               String(gps.altitude.meters()) + ", ";
   }
 
@@ -285,7 +285,7 @@ void getValues() {
   }
   
   //ler valores do sensor e guardar no bmpdata
-  bmpdata = "Temp: " + String(bmp.temperature) + ", Press: " + String(bmp.pressure / 100.0) + ", Alt: " + String(bmp.readAltitude(SEALEVELPRESSURE_HPA)) + ", ";
+  bmpdata = "Temp: " + String(bmp.temperature) + ", Press: " + String(bmp.pressure / 100.0) + ", Alt1: " + String(bmp.readAltitude(SEALEVELPRESSURE_HPA)) + ", ";
 
 
   temperature = bmp.temperature;
@@ -324,25 +324,24 @@ void getValues() {
     pitch27 = pitch27 + 90;
   } 
 
-  X = bmp.readAltitude(SEALEVELPRESSURE_HPA) * tan((pitch27 - 20) * rad); 
-  A = ( bmp.readAltitude(SEALEVELPRESSURE_HPA) * (tan((pitch27 + 20) * rad) - tan((pitch27 - 20) * rad))) / 2;
-  r = X + A;
+  X = bmp.readAltitude(SEALEVELPRESSURE_HPA) * tan((pitch27 - 61,3) * rad); 
+  a = ( bmp.readAltitude(SEALEVELPRESSURE_HPA) * (tan((pitch27 + 61,3) * rad) - tan((pitch27 - 61,3) * rad))) / 2;
+  r = X + a;
   //X do cansat é latitude e Y a longitude
   XC = (r * cos(heading * rad) * 57.3 - gps.location.lat());
   YC = (r * sin(heading * rad) * 57.3 - gps.location.lng());
 
-  if (pitch > 70) 
-    A = 0.0; //se aparecer 0.0 na string, então é porque A não é valido
+  //if (pitch27 > 28,7) 
+  // a = 0.0; //se aparecer 0.0 na string, então é porque A não é valido
   
 
-  gyrodata = "M: " + String(x) + ";" + String(y) + ";" + String(z) + ", Roll: " + String(roll27) + ", Pitch: " + String(pitch27) + ", Head: " + String(heading) + ", X: " + String(X) + ", A: " + \
-             String(A) + ", r: " + String(r) + ", xC: " + String(XC) + ", yC: " + String(YC) + ", ";
+  gyrodata = "M: " + String(x) + ";" + String(y) + ";" + String(z) + ", Roll: " + String(roll27) + ", Pitch: " + String(pitch27) + ", Head: " + String(heading) + ", a: " + \
+             String(a) + ", r: " + String(r) + ", xC: " + String(XC) + ", yC: " + String(YC) + ", ";
+
 
 //fotodiodos
   RED = analogRead(analogRedPin);
-  NIR1 = analogRead(analogNirPin1);
-  NIR2 = analogRead(analogNirPin2);
-  NIR = (NIR1 + NIR2) / 2;
+  NIR = analogRead(analogNirPin1);
   NDVI = ((float)NIR - (float)RED)/((float)NIR + (float)RED);
  
   diodedata = "Red: " + String(RED) + ", NIR: " + String(NIR) + ", NDVI: " + String(NDVI);
@@ -421,3 +420,4 @@ void calibrate(uint32_t timeout, int32_t* offsetx, int32_t* offsety, int32_t* of
   *offsetz = value_z_min + (value_z_max - value_z_min) / 2;
 
 }
+
